@@ -8,12 +8,19 @@
 | **Stack** | C++17 (core) · Node.js + Express (bridge) · Next.js 14 + React 18 + TypeScript + Tailwind CSS (UI) |
 | **Repository** | [github.com/subhm2004/CoreBalance-Advanced-Multi-Core-Simulator](https://github.com/subhm2004/CoreBalance-Advanced-Multi-Core-Simulator) |
 
+**Diagrams:** This README includes **Mermaid** blocks (architecture + sequences + deployment flow). They render automatically on **GitHub**; in VS Code / Cursor, use a Mermaid preview extension if needed.
+
 ---
 
 ## Table of contents
 
 1. [What you get](#what-you-get)
 2. [Architecture](#architecture)
+   - [Mermaid: system context](#mermaid-system-context)
+   - [Mermaid: component and deployment view](#mermaid-component-and-deployment-view)
+   - [Mermaid: sequence run schedule single-core](#mermaid-sequence-run-schedule-single-core)
+   - [Mermaid: sequence compare dual-core](#mermaid-sequence-compare-dual-core)
+   - [Mermaid: sequence random generation](#mermaid-sequence-random-generation)
 3. [Scheduling algorithms](#scheduling-algorithms)
 4. [Repository layout](#repository-layout)
 5. [Prerequisites](#prerequisites)
@@ -23,12 +30,13 @@
 9. [Environment variables](#environment-variables)
 10. [HTTP API reference](#http-api-reference)
 11. [Frontend application](#frontend-application)
-12. [Docker](#docker)
-13. [Development notes](#development-notes)
-14. [Troubleshooting](#troubleshooting)
-15. [Security & privacy](#security--privacy)
-16. [Contributing](#contributing)
-17. [Further reading in this repo](#further-reading-in-this-repo)
+12. [Deployment](#deployment)
+13. [Docker](#docker)
+14. [Development notes](#development-notes)
+15. [Troubleshooting](#troubleshooting)
+16. [Security & privacy](#security--privacy)
+17. [Contributing](#contributing)
+18. [Further reading in this repo](#further-reading-in-this-repo)
 
 ---
 
@@ -63,22 +71,150 @@ All schedulers communicate results as **JSON on stdout**; the Node API parses th
 
 ## Architecture
 
-High-level data flow:
+CoreBalance is a **three-tier** app: the **browser** runs the Next.js client UI; the **Express API** validates input and **spawns** native binaries; **C++** computes schedules and prints **JSON on stdout**, which Node parses and returns over HTTP.
+
+Quick ASCII overview:
 
 ```
- Browser (Next.js)
-       │  HTTP (JSON)
+ Browser (Next.js client)
+       │  HTTP (JSON) — same origin or cross-origin (CORS in dev)
        ▼
  Express (api/server.js)  ←  PORT default 3001
-       │  spawn + stdin/args
+       │  child_process.spawn + argv
        ▼
  C++ binaries (cpp/build/bin/)
-   • scheduler          → single-core
-   • dualcore_scheduler → dual-core
-   • generator          → random processes
+   • scheduler            → single-core
+   • dualcore_scheduler   → dual-core
+   • generator            → random processes
 ```
 
-Why three layers?
+### Mermaid: system context
+
+Who talks to whom at runtime (local dev shown; production uses your public hostnames).
+
+```mermaid
+flowchart TB
+  subgraph UserSpace["User machine or server"]
+    U[User / browser]
+    N["Next.js app :3000"]
+    A["Express API server.js :3001"]
+    subgraph Bin["cpp/build/bin"]
+      SC[scheduler]
+      DC[dualcore_scheduler]
+      GN[generator]
+    end
+  end
+
+  U -->|Open UI| N
+  U -->|fetch JSON| A
+  A -->|spawn| SC
+  A -->|spawn| DC
+  A -->|spawn| GN
+  SC -.->|stdout JSON| A
+  DC -.->|stdout JSON| A
+  GN -.->|stdout JSON| A
+  A -.->|HTTP response| U
+```
+
+### Mermaid: component and deployment view
+
+Logical modules and artifacts (not every file — see [Repository layout](#repository-layout)).
+
+```mermaid
+flowchart LR
+  subgraph FE["frontend/"]
+    P["app/page.tsx"]
+    S["app/simulator/page.tsx"]
+    C["components/*"]
+    T["types/index.ts"]
+  end
+
+  subgraph API["api/"]
+    SV["server.js"]
+  end
+
+  subgraph CPP["cpp/src + build"]
+    ALG["FCFS · SJF · RR · Priority"]
+    DALG["DualCore*"]
+    GEN["ProcessGenerator"]
+  end
+
+  S --> C
+  C --> T
+  S -->|HTTPS fetch| SV
+  SV --> ALG
+  SV --> DALG
+  SV --> GEN
+```
+
+### Mermaid: sequence run schedule single-core
+
+Typical path when the user runs **Single** mode and clicks **Run Schedule** (`POST /api/schedule`).
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant UI as Simulator client
+  participant API as Express POST /api/schedule
+  participant BIN as C++ scheduler
+
+  U->>UI: Configure processes + algorithm
+  U->>UI: Click Run Schedule
+  UI->>API: POST algorithm, timeQuantum, processes
+  API->>API: Validate algorithm + process fields
+  API->>BIN: spawn argv + process lines
+  Note over BIN: FCFS / SJF / RoundRobin / Priority
+  BIN-->>API: stdout single JSON object
+  API->>API: JSON.parse stdout
+  API-->>UI: 200 ScheduleResult JSON
+  UI->>U: Gantt + metrics + timeline controls
+```
+
+### Mermaid: sequence compare dual-core
+
+**Compare** mode calls `/api/compare-dualcore`; the API loops over all dual-core algorithms (each spawn is independent).
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant UI as Simulator client
+  participant API as Express POST /api/compare-dualcore
+  participant DC as dualcore_scheduler
+
+  U->>UI: Click Compare all
+  UI->>API: POST timeQuantum + processes
+  loop Each DualCore algorithm
+    API->>DC: spawn algorithm + workload
+    DC-->>API: stdout JSON per run
+  end
+  API-->>UI: 200 map algorithm to result
+  UI->>U: Comparison table + charts
+```
+
+### Mermaid: sequence random generation
+
+Used by **Random data** (`GET /api/generate-random`).
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant UI as RandomDataGenerator
+  participant API as Express GET /api/generate-random
+  participant GN as generator
+
+  U->>UI: Set count and optional seed
+  U->>UI: Generate
+  UI->>API: GET query count and seed
+  API->>GN: spawn count seed
+  GN-->>API: stdout JSON array of processes
+  API-->>UI: 200 process list
+  UI->>UI: Update process table
+```
+
+### Why three layers?
 
 1. **C++** — predictable CPU scheduling logic, easy to align with textbook definitions, no JS floating surprises for core algorithms.
 2. **Node** — thin **orchestration** layer: HTTP, validation, process spawning, error handling.
@@ -373,10 +509,59 @@ Runs **all four dual-core** algorithms.
 
 | Script | Meaning |
 |--------|---------|
-| `npm run dev` | `npm run clean && next dev` — clears `.next` then dev server. |
-| `npm run dev:fast` | `next dev` only — quicker restarts if you know cache is healthy. |
+| `npm run clean` | Deletes `.next` and `node_modules/.cache` (fixes many dev chunk errors). |
+| `npm run dev` | Runs `predev` (clean) then `next dev` — **recommended** daily driver. |
+| `npm run dev:clean` | Explicit `clean && next dev` (same idea, obvious name). |
+| `npm run dev:fast` | `next dev` only — skips clean; use when cache is healthy. |
 | `npm run build` / `npm start` | Production build / serve. |
 | `npm run lint` | Next.js ESLint. |
+
+**Main UI components** (under `frontend/components/`): `ProcessInput`, `AlgorithmSelector`, `SimulationControls`, `RandomDataGenerator`, `GanttChart`, `DualCoreGanttChart`, `MetricsTable`, `ComparisonTable`, `ComparisonView`, `CPUUtilizationChart`, `MemoryGauge`, `AlgorithmExplain`, `PriorityAgingVisualization`, `IOOperationsSimulation`, `ThemeProvider`, `ThemeToggle`.
+
+---
+
+## Deployment
+
+You always need **three artifacts** in production: **C++ binaries**, **Node API**, **Next static/server bundle**. The repo supports **one Docker image** that contains all three (simplest ops story).
+
+### Options at a glance
+
+| Approach | Best for | Notes |
+|----------|----------|--------|
+| **Root `Dockerfile`** (monolith) | VPS, single service on Railway/Render | Builds C++ in-image, `next build`, then `CMD` runs API + `next start`. Exposes **3000** + **3001**. |
+| **`docker-compose.yml`** | Local/staging multi-container | API may need **host-built** binaries mounted; align `frontend` Dockerfile path with your tree (see [Docker](#docker)). |
+| **Split deploy** | Scale UI vs API separately | Run API where binaries exist; build frontend with `NEXT_PUBLIC_API_URL` pointing at the **browser-reachable** API URL. |
+
+### Mermaid: deployment decision
+
+```mermaid
+flowchart TB
+  START([Ready to ship?]) --> Q1{Same host / single VM?}
+  Q1 -->|Yes| M["Use root Dockerfile: docker build -t corebalance ."]
+  M --> R["docker run -p 3000:3000 -p 3001:3001"]
+  R --> NG["Optional: Nginx TLS + reverse proxy"]
+
+  Q1 -->|No / PaaS| P["Platform: Railway / Render / Fly + Dockerfile"]
+  P --> ENV["Set NEXT_PUBLIC_API_URL at next build to public API URL"]
+  ENV --> GO["Deploy API and UI per platform docs"]
+
+  NG --> END([Users open HTTPS site])
+  GO --> END
+```
+
+### Minimal monolith commands
+
+From **repository root** (after `NEXT_PUBLIC_API_URL` is correct for your public API origin — often set via build args or `.env.production` before `docker build`; see `DOCKER_DEPLOYMENT.md`):
+
+```bash
+docker build -t corebalance:latest .
+docker run -p 3000:3000 -p 3001:3001 corebalance:latest
+```
+
+- UI: `http://<host>:3000`
+- API health: `http://<host>:3001/health`
+
+**Critical:** `NEXT_PUBLIC_API_URL` is embedded at **`next build`** time. If the browser cannot reach the URL you baked in, scheduling calls will fail from the client.
 
 ---
 
