@@ -257,7 +257,8 @@ CoreBalance-Advanced-Multi-Core-Simulator/
 ├── build.sh                # Build C++ + npm install (api + frontend)
 ├── start.sh                # Start API + Next dev (see below)
 ├── docker-compose.yml
-├── Dockerfile.api          # API service image
+├── Dockerfile.api          # API only (C++ + Express) — Render / split deploy
+├── Dockerfile.frontend     # Next only — set NEXT_PUBLIC_API_URL at build
 ├── Dockerfile              # Monolith: C++ build + API + Next production
 ├── QUICKSTART.md
 ├── DOCKER_QUICK_START.md
@@ -532,6 +533,8 @@ You always need **three artifacts** in production: **C++ binaries**, **Node API*
 | **`docker-compose.yml`** | Local/staging multi-container | API may need **host-built** binaries mounted; align `frontend` Dockerfile path with your tree (see [Docker](#docker)). |
 | **Split deploy** | Scale UI vs API separately | Run API where binaries exist; build frontend with `NEXT_PUBLIC_API_URL` pointing at the **browser-reachable** API URL. |
 
+**Render.com (step-by-step):** see **[`RENDER.md`](./RENDER.md)** — do Web Services (`Dockerfile.api` + `Dockerfile.frontend`) + build arg `NEXT_PUBLIC_API_URL`.
+
 ### Mermaid: deployment decision
 
 ```mermaid
@@ -649,6 +652,7 @@ Issues and pull requests are welcome. Good first steps:
 | File | Content |
 |------|---------|
 | `QUICKSTART.md` | Shortened setup + basic troubleshooting |
+| `RENDER.md` | **Render.com**: two Web Services, env, troubleshooting |
 | `DOCKER_QUICK_START.md` | Docker-focused quick path |
 | `DOCKER_DEPLOYMENT.md` | Deeper deployment notes |
 
