@@ -114,7 +114,12 @@ export default function SimulatorPage() {
       const data = await response.json()
       setResult(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(
+        msg === 'Failed to fetch' || msg.includes('NetworkError')
+          ? `${msg} — Is the API running? (e.g. cd api && node server.js, default port 3001; match NEXT_PUBLIC_API_URL.)`
+          : msg
+      )
     } finally {
       setLoading(false)
     }
@@ -151,7 +156,12 @@ export default function SimulatorPage() {
       const data = await response.json()
       setDualCoreResult(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(
+        msg === 'Failed to fetch' || msg.includes('NetworkError')
+          ? `${msg} — Is the API running? (e.g. cd api && node server.js, default port 3001; match NEXT_PUBLIC_API_URL.)`
+          : msg
+      )
     } finally {
       setLoading(false)
     }
@@ -188,7 +198,12 @@ export default function SimulatorPage() {
       const data = await response.json()
       setComparisonResults(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const msg = err instanceof Error ? err.message : 'An error occurred'
+      setError(
+        msg === 'Failed to fetch' || msg.includes('NetworkError')
+          ? `${msg} — Is the API running? (e.g. cd api && node server.js, default port 3001; match NEXT_PUBLIC_API_URL.)`
+          : msg
+      )
     } finally {
       setLoading(false)
     }

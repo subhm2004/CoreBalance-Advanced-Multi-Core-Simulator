@@ -29,7 +29,12 @@ export default function RandomDataGenerator({ onGenerate, onAutoSimulate, loadin
       onGenerate(processes)
     } catch (error) {
       console.error('RandomDataGenerator: Error generating random data:', error)
-      alert(`Failed to generate random data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const m = error instanceof Error ? error.message : 'Unknown error'
+      const hint =
+        m === 'Failed to fetch' || m.includes('NetworkError')
+          ? ' Start the API (cd api && node server.js) and check NEXT_PUBLIC_API_URL matches the API port.'
+          : ''
+      alert(`Failed to generate random data: ${m}.${hint}`)
     }
   }
 
@@ -49,7 +54,12 @@ export default function RandomDataGenerator({ onGenerate, onAutoSimulate, loadin
       onAutoSimulate(processes)
     } catch (error) {
       console.error('RandomDataGenerator: Error generating random data:', error)
-      alert(`Failed to generate random data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const m = error instanceof Error ? error.message : 'Unknown error'
+      const hint =
+        m === 'Failed to fetch' || m.includes('NetworkError')
+          ? ' Start the API (cd api && node server.js) and check NEXT_PUBLIC_API_URL matches the API port.'
+          : ''
+      alert(`Failed to generate random data: ${m}.${hint}`)
     }
   }
 

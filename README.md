@@ -1,523 +1,237 @@
-# 🚀 CoreBalance - Advanced Multi-Core Simulator
+# CoreBalance — Advanced Multi-Core CPU Scheduling Simulator
 
-> **Interactive visualization tool for CPU scheduling algorithms** with beautiful UI, real-time simulations, and comprehensive metrics.
+**CoreBalance** is an educational **operating-systems** project: you define a workload (processes with arrival time, burst time, and optional priority / memory hints), pick **single-core** or **dual-core** scheduling modes, run **FCFS**, **SJF**, **Round Robin**, or **Priority** (and their dual-core variants), then inspect **Gantt timelines**, **averages**, **CPU utilization**, and **side-by-side comparison** — with a **Next.js** UI talking to a small **Express** API that delegates the real scheduling to **C++17** executables.
 
-![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![License](https://img.shields.io/badge/License-MIT-blue)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.2-blue)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green)
-![C++](https://img.shields.io/badge/C%2B%2B-17-red)
-
----
-
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Quick Start](#-quick-start)
-- [Architecture](#-architecture)
-- [Algorithms](#-algorithms)
-- [UI/UX](#-uiux)
-- [API](#-api)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [Project Structure](#-project-structure)
+| Item | Details |
+|------|---------|
+| **License** | MIT (see `LICENSE`) |
+| **Stack** | C++17 (core) · Node.js + Express (bridge) · Next.js 14 + React 18 + TypeScript + Tailwind CSS (UI) |
+| **Repository** | [github.com/subhm2004/CoreBalance-Advanced-Multi-Core-Simulator](https://github.com/subhm2004/CoreBalance-Advanced-Multi-Core-Simulator) |
 
 ---
 
-## ✨ Features
+## Table of contents
 
-### 🎯 Core Functionality
-
-- **4 Single-Core Algorithms**: FCFS, SJF, Round Robin, Priority
-- **4 Dual-Core Algorithms**: All algorithms with load balancing
-- **Real-Time Visualization**: Gantt charts, animations, and metrics
-- **Algorithm Comparison**: Run all algorithms simultaneously
-- **Performance Metrics**: Waiting time, turnaround time, CPU utilization
-- **Random Process Generator**: Instant test data generation
-
-### 🎨 User Interface
-
-- **Modern Design**: Gradient backgrounds, smooth animations, emojis
-- **Dark/Light Mode**: Complete theme support
-- **Responsive Layout**: Works on desktop, tablet, mobile
-- **Interactive Controls**: Real-time process editor
-- **Professional Charts**: Chart.js visualizations
-- **Live Updates**: Instant visual feedback
-
-### ⚡ Performance
-
-- **Instant Calculations**: <1ms for 100 processes
-- **Optimized Bundle**: Only ~200KB gzipped
-- **Zero Latency**: Client-side architecture
-- **Smooth Animations**: 60fps transitions
+1. [What you get](#what-you-get)
+2. [Architecture](#architecture)
+3. [Scheduling algorithms](#scheduling-algorithms)
+4. [Repository layout](#repository-layout)
+5. [Prerequisites](#prerequisites)
+6. [Quick start (recommended)](#quick-start-recommended)
+7. [Manual setup](#manual-setup)
+8. [Running & URLs](#running--urls)
+9. [Environment variables](#environment-variables)
+10. [HTTP API reference](#http-api-reference)
+11. [Frontend application](#frontend-application)
+12. [Docker](#docker)
+13. [Development notes](#development-notes)
+14. [Troubleshooting](#troubleshooting)
+15. [Security & privacy](#security--privacy)
+16. [Contributing](#contributing)
+17. [Further reading in this repo](#further-reading-in-this-repo)
 
 ---
 
-## 🚀 Quick Start
+## What you get
 
-### Option 1: Automated Setup
+### Scheduling engine (C++)
+
+- **Single-core** binary `scheduler`: FCFS, SJF, Round Robin, Priority — one CPU, strict simulation order from your algorithm choice.
+- **Dual-core** binary `dualcore_scheduler`: `DualCoreFCFS`, `DualCoreSJF`, `DualCoreRoundRobin`, `DualCorePriority` — two parallel timelines (`core0` / `core1`) plus aggregate metrics (e.g. utilization, context switches where implemented).
+- **Random process generator** binary `generator`: used by the API for `GET /api/generate-random` with optional **seed** for reproducible demos.
+
+All schedulers communicate results as **JSON on stdout**; the Node API parses that JSON and forwards it to the browser.
+
+### Web UI (Next.js)
+
+- **Landing** (`/`) — project overview and navigation.
+- **Simulator** (`/simulator`) — main lab:
+  - Editable **process table** (arrival, burst, priority, optional memory field used in payloads).
+  - **Algorithm** and **mode**: single-core run, dual-core run, or **compare all dual-core** algorithms on the same workload.
+  - **Time quantum** for Round Robin (single and dual).
+  - **Gantt** visualization (single or dual core), **metrics** tables, **CPU utilization** charting where data is returned, **comparison** table for multi-algorithm runs.
+  - **Playback**: play/pause, speed, optional **step** mode over the timeline.
+  - **Dark / light** theme (`next-themes`).
+  - **Random data** panel calling the generator API.
+
+### API bridge (Express)
+
+- Validates bodies, spawns the correct binary with **algorithm name**, **time quantum**, and a **line-oriented process list**, then returns parsed JSON.
+- **CORS** enabled for local development (browser → API on another port).
+
+---
+
+## Architecture
+
+High-level data flow:
+
+```
+ Browser (Next.js)
+       │  HTTP (JSON)
+       ▼
+ Express (api/server.js)  ←  PORT default 3001
+       │  spawn + stdin/args
+       ▼
+ C++ binaries (cpp/build/bin/)
+   • scheduler          → single-core
+   • dualcore_scheduler → dual-core
+   • generator          → random processes
+```
+
+Why three layers?
+
+1. **C++** — predictable CPU scheduling logic, easy to align with textbook definitions, no JS floating surprises for core algorithms.
+2. **Node** — thin **orchestration** layer: HTTP, validation, process spawning, error handling.
+3. **Next.js** — rich **UX**: forms, charts (Chart.js), theme, routing.
+
+---
+
+## Scheduling algorithms
+
+| Algorithm (API string) | Preemptive? | Short description |
+|------------------------|-------------|-------------------|
+| `FCFS` | No | Serve processes in **arrival order**; simple, can convoy long jobs. |
+| `SJF` | No (non-preemptive SJF in typical OS course sense) | Prefer **shorter burst** among arrived jobs — good average wait **if** bursts known. |
+| `RoundRobin` | Yes | Fixed **time quantum**; cycle through ready queue — fairness vs overhead trade-off. |
+| `Priority` | Depends on implementation | Higher priority (see code / UI for numeric convention) tends to run before lower; aging-related fields may appear in JSON for visualization. |
+
+**Dual-core** variants use the `DualCore*` prefix (`DualCoreFCFS`, …) and return **per-core** Gantt slices plus combined statistics (see types in `frontend/types/index.ts` — `DualCoreScheduleResult`).
+
+**Compare** endpoints run **all four** algorithms for the mode (single: `/api/compare`, dual: `/api/compare-dualcore`) with the **same** `processes` and `timeQuantum` so you can rank outcomes.
+
+---
+
+## Repository layout
+
+```
+CoreBalance-Advanced-Multi-Core-Simulator/
+├── api/                    # Express server (server.js)
+├── cpp/                    # CMake project — schedulers + generator
+│   ├── CMakeLists.txt
+│   └── src/                # Algorithm + process + mains
+├── frontend/               # Next.js 14 app
+│   ├── app/
+│   │   ├── page.tsx        # Landing
+│   │   ├── layout.tsx
+│   │   ├── globals.css
+│   │   └── simulator/page.tsx
+│   ├── components/         # UI modules (Gantt, controls, charts, …)
+│   ├── public/
+│   └── types/index.ts      # Shared TS interfaces for API payloads
+├── build.sh                # Build C++ + npm install (api + frontend)
+├── start.sh                # Start API + Next dev (see below)
+├── docker-compose.yml
+├── Dockerfile.api          # API service image
+├── Dockerfile              # Monolith: C++ build + API + Next production
+├── QUICKSTART.md
+├── DOCKER_QUICK_START.md
+├── DOCKER_DEPLOYMENT.md
+├── LICENSE
+└── README.md               # This file
+```
+
+---
+
+## Prerequisites
+
+| Tool | Purpose | Typical version |
+|------|---------|-----------------|
+| **C++ compiler** with **C++17** | Build `scheduler`, `dualcore_scheduler`, `generator` | GCC or Clang |
+| **CMake** | Configure C++ build | ≥ 3.10 |
+| **Node.js** | Run API + Next.js | **18+** recommended |
+| **npm** | Install JS dependencies | ships with Node |
+
+**Windows:** use WSL2 or MSVC + CMake; paths in scripts assume Unix-style `cpp/build/bin/`. Adjust or run commands manually if you use native Windows shells.
+
+---
+
+## Quick start (recommended)
+
+From the **repository root**:
 
 ```bash
-./build.sh    # Build all components
-./start.sh    # Start all services
-# Open http://localhost:3000
+chmod +x build.sh start.sh   # once, if needed
+./build.sh                   # builds C++ + npm install in api/ and frontend/
+./start.sh                   # starts API + Next.js dev server
 ```
 
-### Option 2: Manual Setup
+Then open the **frontend URL** printed in the terminal (often `http://localhost:3000`) and use **Simulator**.
 
-**Terminal 1 - C++ Backend:**
+### What `./start.sh` does (important details)
 
-```bash
-cd cpp && mkdir -p build && cd build
-cmake .. && make
-```
-
-**Terminal 2 - Node.js API:**
-
-```bash
-cd api
-npm install
-node server.js
-# Runs on http://localhost:3001
-```
-
-**Terminal 3 - Frontend:**
-
-```bash
-cd frontend
-npm install
-npm run dev
-# Opens http://localhost:3000
-```
+- Verifies `cpp/build/bin/scheduler` exists (run `./build.sh` first if missing).
+- Installs `api/node_modules` and `frontend/node_modules` if absent.
+- Picks **free ports** if `3000` / `3001` are busy (e.g. frontend on `3003`, API on `3002`) — always read the script output.
+- Sets `NEXT_PUBLIC_API_URL` for the frontend to match the chosen API port.
+- Clears `frontend/.next` before dev to reduce stale webpack chunk errors after upgrades.
+- Logs: `api.log` and `frontend.log` in the repo root.
+- **Ctrl+C** stops both child processes (trap).
 
 ---
 
-## 🏗️ Architecture
+## Manual setup
 
-### Three-Tier Architecture
+If you prefer full control:
 
-```
-┌─────────────────────────────────────┐
-│    Frontend (Next.js + React)       │
-│    - Beautiful UI/UX                │
-│    - Real-time visualization        │
-│    - Interactive controls           │
-└─────────────┬───────────────────────┘
-              │ HTTP REST API
-┌─────────────▼───────────────────────┐
-│    Backend (Node.js + Express)      │
-│    - API routing                    │
-│    - Process spawning               │
-│    - Data formatting                │
-└─────────────┬───────────────────────┘
-              │ IPC / Stdio
-┌─────────────▼───────────────────────┐
-│    Core (C++ Executables)           │
-│    - Scheduling algorithms          │
-│    - High-performance computation   │
-│    - Process simulation             │
-└─────────────────────────────────────┘
-```
-
----
-
-## 🎓 Algorithms
-
-### FCFS (First Come First Served)
-
-- **Complexity**: O(n)
-- **Best For**: Simple workloads
-- **Characteristics**: Non-preemptive, FIFO queue
-
-### SJF (Shortest Job First)
-
-- **Complexity**: O(n log n)
-- **Best For**: Minimizing waiting time
-- **Characteristics**: Optimal for waiting time
-
-### Round Robin
-
-- **Complexity**: O(n)
-- **Best For**: Fair scheduling, time-sharing
-- **Characteristics**: Preemptive, time quantum based
-
-### Priority
-
-- **Complexity**: O(n)
-- **Best For**: Real-time systems
-- **Characteristics**: Priority queue based
-
----
-
-## 🎨 UI/UX Highlights
-
-### 🎭 Modern Design
-
-- Gradient backgrounds with smooth animations
-- Color-coded metrics (blue, purple, amber, green)
-- Responsive grid layout
-- Professional typography
-
-### 🌙 Theme Support
-
-- Light mode with bright gradients
-- Dark mode with slate colors
-- Smooth theme transitions
-- Full accessibility
-
-### ⚙️ Interactive Elements
-
-- Real-time process table editor
-- Drag-to-sort capabilities
-- Instant data validation
-- Visual feedback on interactions
-
-### 📊 Visualizations
-
-- Animated Gantt charts
-- Performance metric cards
-- CPU utilization graphs
-- Memory usage gauges
-- Comparison tables
-
----
-
-## 🔌 API Reference
-
-### POST `/api/schedule`
-
-Run single-core scheduling
-
-```json
-{
-  "algorithm": "FCFS",
-  "processes": [{ "id": 1, "arrivalTime": 0, "burstTime": 5, "priority": 1 }]
-}
-```
-
-### POST `/api/schedule-dualcore`
-
-Run dual-core scheduling
-
-```json
-{
-  "algorithm": "DualCoreFCFS",
-  "processes": [...],
-  "timeQuantum": 2
-}
-```
-
-### POST `/api/compare-dualcore`
-
-Compare all algorithms
-
-```json
-{
-  "processes": [...],
-  "timeQuantum": 2
-}
-```
-
-### GET `/api/generate-random?count=10`
-
-Generate random processes
-
----
-
-## 📦 Installation
-
-### Requirements
-
-- **Node.js** 18+
-- **npm** 9+
-- **C++17** compiler (g++ or clang)
-- **CMake** 3.10+
-- **macOS/Linux** (tested on both)
-
-### Step-by-Step
-
-1. **Clone Repository**
-
-```bash
-git clone <repo-url>
-cd OS-Project
-```
-
-2. **Install Dependencies**
-
-```bash
-cd frontend && npm install
-cd ../api && npm install
-```
-
-3. **Build C++ Backend**
+### 1) Build C++ binaries
 
 ```bash
 cd cpp
 mkdir -p build && cd build
 cmake ..
-make
-cd ../..
+cmake --build .
 ```
 
-4. **Set Environment Variables** (optional)
+Outputs (by CMake config in this repo):
 
-```bash
-export NEXT_PUBLIC_API_URL=http://localhost:3001
-```
+- `cpp/build/bin/scheduler`
+- `cpp/build/bin/dualcore_scheduler`
+- `cpp/build/bin/generator`
 
----
-
-## 💻 Usage
-
-### Basic Workflow
-
-1. **Configure Processes**
-   - Manually enter process details
-   - OR use random generator
-   - Set arrival times, burst times, priorities
-
-2. **Select Algorithm**
-   - Choose from 4 algorithms
-   - Set time quantum (for Round Robin)
-   - Toggle single-core/dual-core/compare modes
-
-3. **Run Simulation**
-   - Click "Run Schedule" button
-   - Watch Gantt chart animate
-   - View performance metrics
-
-4. **Analyze Results**
-   - Compare average waiting time
-   - Compare average turnaround time
-   - Analyze total execution time
-   - View CPU utilization
-
-5. **Compare All**
-   - Run all algorithms simultaneously
-   - Side-by-side comparison
-   - Identify best algorithm for workload
-
----
-
-## 📁 Project Structure
-
-```
-OS Project/
-├── 🎨 frontend/              # Next.js + React + TypeScript
-│   ├── app/
-│   │   ├── page.tsx         # Main page
-│   │   ├── layout.tsx       # Root layout
-│   │   └── globals.css      # Global styles
-│   ├── components/          # 12+ React components
-│   ├── types/               # TypeScript definitions
-│   └── package.json
-│
-├── 🖥️ api/                   # Node.js + Express
-│   ├── server.js            # API server
-│   └── package.json
-│
-├── ⚙️ cpp/                   # C++ Core Engine
-│   ├── src/                 # Source files
-│   ├── build/               # Compiled binaries
-│   └── CMakeLists.txt
-│
-├── 📚 Documentation
-│   ├── README.md            # This file
-│   ├── QUICKSTART.md        # Quick start
-│   ├── PROJECT_STRUCTURE.md # Detailed structure
-│   └── FRONTEND_IMPROVEMENTS.md
-│
-├── 🛠️ Scripts
-│   ├── build.sh             # Build everything
-│   └── start.sh             # Start services
-│
-└── 📄 Configuration
-    ├── .gitignore
-    └── package.json (root)
-```
-
----
-
-## 🎯 Key Components
-
-### Frontend Components (12)
-
-- `AlgorithmSelector` - Algorithm & mode selection
-- `ProcessInput` - Process table editor
-- `GanttChart` - Single-core Gantt visualization
-- `DualCoreGanttChart` - Dual-core visualization
-- `MetricsTable` - Performance metrics
-- `ComparisonTable` - Algorithm comparison
-- `CPUUtilizationChart` - CPU usage graph
-- `MemoryGauge` - Memory usage widget
-- `RandomDataGenerator` - Test data generator
-- `ThemeToggle` - Dark/Light mode switch
-- `ThemeProvider` - Theme context
-- `ComparisonView` - Comparison layout
-
-### C++ Algorithms
-
-- **Single-Core**: FCFS, SJF, RoundRobin, Priority
-- **Dual-Core**: DualCoreFCFS, DualCoreSJF, DualCoreRoundRobin, DualCorePriority
-- **Utilities**: Process, Scheduler, ProcessGenerator
-
----
-
-## 📊 Performance
-
-| Metric                               | Value            |
-| ------------------------------------ | ---------------- |
-| **Frontend Bundle**                  | ~200KB (gzipped) |
-| **Calculation Time (10 processes)**  | <1ms             |
-| **Calculation Time (100 processes)** | <5ms             |
-| **UI Response Time**                 | <16ms (60fps)    |
-| **Memory Usage**                     | ~50MB            |
-| **Startup Time**                     | ~2s              |
-
----
-
-## 🎓 Learning Outcomes
-
-After using this tool, you'll understand:
-
-- ✅ How CPU scheduling algorithms work
-- ✅ Trade-offs between different algorithms
-- ✅ Impact of time quantum on Round Robin
-- ✅ Importance of priority levels
-- ✅ Metrics: waiting time, turnaround time
-- ✅ Dual-core load balancing
-- ✅ Context switching overhead
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Areas for improvement:
-
-- [ ] Export results as PDF/CSV
-- [ ] Save/load simulations
-- [ ] More scheduling algorithms
-- [ ] Mobile app version
-- [ ] Performance benchmarking tools
-
----
-
-## 📝 License
-
-MIT License - Feel free to use in personal/educational projects
-
----
-
-## 👨‍💻 Built With
-
-- **React 18** - UI library
-- **Next.js 14** - React framework
-- **TypeScript 5.2** - Type safety
-- **Tailwind CSS 3.3** - Styling
-- **Chart.js 4.4** - Data visualization
-- **Node.js 18** - Runtime
-- **Express.js** - Web framework
-- **C++17** - Core algorithms
-- **CMake** - Build system
-
----
-
-## 📧 Support
-
-For issues, questions, or suggestions:
-
-- Check existing documentation
-- Review code comments
-- Create an issue in repository
-
----
-
-## 🎉 Acknowledgments
-
-Built as an **educational project** to visualize and understand CPU scheduling algorithms in operating systems.
-
-**Status**: Production Ready ✅
-**Last Updated**: January 2026
-**Version**: 1.0.0
-
----
-
-**Happy Scheduling!** 🚀
-
-- **C++ Compiler**: GCC/Clang with C++17 support
-- **CMake**: Version 3.10 or higher
-- **Node.js**: Version 18 or higher
-- **npm** or **yarn**
-
-## Setup Instructions
-
-### 1. Build C++ Scheduler
-
-```bash
-cd cpp
-mkdir -p build
-cd build
-cmake ..
-make
-```
-
-The compiled binary will be at `cpp/build/bin/scheduler`.
-
-### 2. Setup API Server
+### 2) API dependencies
 
 ```bash
 cd api
 npm install
 ```
 
-### 3. Setup Frontend
+### 3) Frontend dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
-## Running the Application
+---
 
-### Quick Start (Single Command)
+## Running & URLs
 
-Start both servers with one command:
+### Option A — `start.sh` (see [Quick start](#quick-start-recommended))
 
-```bash
-./start.sh
-```
+### Option B — two terminals
 
-This will start:
-
-- API server on `http://localhost:3001`
-- Frontend on `http://localhost:3000`
-
-Press `Ctrl+C` to stop both servers.
-
-### Manual Start (Separate Terminals)
-
-1. **Start the API server** (in one terminal):
+**Terminal 1 — API**
 
 ```bash
 cd api
-npm run dev
+npm run dev          # nodemon — or: npm start / node server.js
+# default http://localhost:3001
 ```
 
-The API will run on `http://localhost:3001`
-
-2. **Start the Next.js frontend** (in another terminal):
+**Terminal 2 — Frontend**
 
 ```bash
 cd frontend
-npm run dev
+npm run dev          # default Next on http://localhost:3000
 ```
 
-The frontend will run on `http://localhost:3000`
+If the API is **not** on `3001`, create `frontend/.env.local`:
 
-### Production Mode
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:YOUR_API_PORT
+```
 
-1. Build the frontend:
+### Production-like frontend
 
 ```bash
 cd frontend
@@ -525,118 +239,240 @@ npm run build
 npm start
 ```
 
-2. Start the API server:
+The API should still be running separately (`node server.js` or `npm start` in `api/`).
+
+### Health check
 
 ```bash
-cd api
-npm start
+curl http://localhost:3001/health
 ```
 
-## Usage
+Expect JSON like `{ "status": "ok", ... }`.
 
-1. **Configure Processes**: Add processes with their arrival time, burst time, and priority (if needed)
-2. **Select Algorithm**: Choose a scheduling algorithm (or compare all)
-3. **Set Time Quantum**: For Round Robin, specify the time quantum
-4. **Run Schedule**: Execute the algorithm and view results
-5. **View Results**:
-   - Gantt chart showing process execution timeline
-   - Performance metrics table
-   - Comparison view (when comparing all algorithms)
+---
 
-## API Endpoints
+## Environment variables
 
-### POST `/api/schedule`
+| Variable | Where | Purpose |
+|----------|-------|---------|
+| `PORT` | `api` | HTTP port for Express (default **3001**). |
+| `NEXT_PUBLIC_API_URL` | `frontend` | Base URL for `fetch()` to the API (default **`http://localhost:3001`**). Must be reachable **from the browser** (not only from the Next server). |
 
-Schedule processes using a single algorithm.
+Create `frontend/.env.local` (ignored by git — see `.gitignore`) for local overrides.
 
-**Request Body**:
+---
+
+## HTTP API reference
+
+Base URL: `http://localhost:3001` (or your `PORT` / `NEXT_PUBLIC_API_URL`).
+
+### `GET /`
+
+Service metadata and endpoint list (JSON).
+
+### `GET /health`
+
+Liveness check for monitoring or quick manual verification.
+
+### `GET /api/generate-random`
+
+**Query parameters**
+
+| Param | Type | Default | Notes |
+|-------|------|---------|------|
+| `count` | integer | `10` | **1–100** inclusive. |
+| `seed` | integer | optional | Passed to generator for reproducible sets. |
+
+**Response:** JSON array of process-like objects (shape aligned with frontend `Process`).
+
+---
+
+### `POST /api/schedule`
+
+**Single-core** run.
+
+**Body (JSON)**
 
 ```json
 {
   "algorithm": "FCFS",
   "timeQuantum": 2,
   "processes": [
-    { "id": 1, "arrivalTime": 0, "burstTime": 5, "priority": 2 },
+    { "id": 1, "arrivalTime": 0, "burstTime": 5, "priority": 2, "memoryRequired": 0 },
     { "id": 2, "arrivalTime": 1, "burstTime": 3, "priority": 1 }
   ]
 }
 ```
 
-**Response**:
+- **`algorithm`** — one of: `FCFS`, `SJF`, `RoundRobin`, `Priority`.
+- **`timeQuantum`** — used for Round Robin; still sent for other algorithms (C++ side consumes a value).
+- **`processes`** — each needs numeric `id`, `arrivalTime`, `burstTime`; `priority` and `memoryRequired` are optional in TS but forwarded when present.
 
-```json
-{
-  "ganttChart": [...],
-  "processes": [...],
-  "avgWaitingTime": 2.5,
-  "avgTurnaroundTime": 5.0,
-  "totalTime": 8
-}
-```
+**Response:** `ScheduleResult`-shaped JSON (`ganttChart`, `processes` with waiting/turnaround, `avgWaitingTime`, `avgTurnaroundTime`, `totalTime`, …) — see `frontend/types/index.ts`.
 
-### POST `/api/compare`
+**Errors:** `400` validation, `500` scheduler / JSON parse failures.
 
-Compare all algorithms with the same process set.
+---
 
-**Request Body**:
+### `POST /api/schedule-dualcore`
+
+**Dual-core** run.
+
+**Body:** same shape as above, but:
+
+- **`algorithm`** ∈ `DualCoreFCFS`, `DualCoreSJF`, `DualCoreRoundRobin`, `DualCorePriority`.
+
+**Response:** `DualCoreScheduleResult` (per-core results + utilization / memory snapshots where implemented).
+
+---
+
+### `POST /api/compare`
+
+Runs **all four single-core** algorithms on the same workload.
 
 ```json
 {
   "timeQuantum": 2,
-  "processes": [...]
+  "processes": [ ... ]
 }
 ```
 
-**Response**:
+**Response:** object keyed by algorithm name, each value a `ScheduleResult` or `{ "error": "..." }` if that run failed.
+
+---
+
+### `POST /api/compare-dualcore`
+
+Runs **all four dual-core** algorithms.
 
 ```json
 {
-  "FCFS": {...},
-  "SJF": {...},
-  "RoundRobin": {...},
-  "Priority": {...}
+  "timeQuantum": 2,
+  "processes": [ ... ]
 }
 ```
 
-## Algorithm Details
+**Response:** object keyed by `DualCore*` name → `DualCoreScheduleResult` or error object.
 
-### FCFS (First Come First Served)
+---
 
-- Non-preemptive
-- Processes executed in order of arrival
-- Simple but may have high waiting times
+## Frontend application
 
-### SJF (Shortest Job First)
+| Route | Description |
+|-------|-------------|
+| `/` | Marketing / overview landing. |
+| `/simulator` | Full simulator: processes, algorithms, run/compare, charts, playback. |
 
-- Non-preemptive
-- Process with shortest burst time executes first
-- Optimal for minimizing average waiting time
+**Key implementation files**
 
-### Round Robin
+- `frontend/app/simulator/page.tsx` — state, `fetch` calls, layout of panels.
+- `frontend/components/*` — `ProcessInput`, `AlgorithmSelector`, `GanttChart`, `DualCoreGanttChart`, `SimulationControls`, `ComparisonTable`, charts, theme, etc.
+- `frontend/types/index.ts` — contracts shared with UI.
 
-- Preemptive
-- Each process gets a time quantum
-- Fair scheduling, prevents starvation
+**npm scripts** (`frontend/package.json`)
 
-### Priority Scheduling
+| Script | Meaning |
+|--------|---------|
+| `npm run dev` | `npm run clean && next dev` — clears `.next` then dev server. |
+| `npm run dev:fast` | `next dev` only — quicker restarts if you know cache is healthy. |
+| `npm run build` / `npm start` | Production build / serve. |
+| `npm run lint` | Next.js ESLint. |
 
-- Non-preemptive
-- Process with highest priority (lowest number) executes first
-- Priority can be static or dynamic
+---
 
-## Technologies Used
+## Docker
 
-- **C++**: Core scheduling algorithms
-- **Node.js/Express**: API bridge
-- **Next.js 14**: React framework
-- **Chart.js**: Data visualization
-- **Tailwind CSS**: Styling
-- **TypeScript**: Type safety
+There are **two** container patterns in this repo:
 
-## License
+1. **`docker-compose.yml`** — separate **`api`** (see `Dockerfile.api`) and **`frontend`** services. The `api` service typically expects **pre-built** binaries on the host mounted at `cpp/build/bin` (see the `volumes` entry). The `frontend` service is configured with `context: ./frontend` and `dockerfile: Dockerfile`; if your checkout does **not** include `frontend/Dockerfile`, adjust the compose file to match your layout or use the **monolith** image below.
 
-MIT
+2. **Root `Dockerfile`** — **multi-stage** build: compiles C++ inside the image, installs API + frontend dependencies, runs `next build`, then starts **both** API and Next with a shell `CMD` (single container exposing ports **3000** and **3001**). Useful when you want one image without mounting host binaries.
+
+For step-by-step container workflows and hosting ideas, read:
+
+- **`DOCKER_QUICK_START.md`**
+- **`DOCKER_DEPLOYMENT.md`**
+
+**Note:** In real deployments, `NEXT_PUBLIC_*` is baked at **build time** for Next.js. Set it to whatever **browser-accessible** URL your API uses (public HTTPS origin), not necessarily an internal Docker DNS name, unless you fully understand browser vs server networking.
+
+---
+
+## Development notes
+
+- **API ↔ C++ contract** is defined by whatever the binaries print to stdout (JSON). If you change C++ output, update `api/server.js` parsing assumptions and TS types.
+- **`start.sh`** is optimized for **local demos**: dynamic ports + clean `.next`. CI or production should use explicit env + `npm run build`.
+- **Chart.js** is used for some visualizations; keep bundle size in mind when adding heavy deps.
+
+---
+
+## Troubleshooting
+
+### `fatal: not a git repository`
+
+You unpacked a ZIP without `.git`. Run `git init` or `git clone` the GitHub URL if you want version control.
+
+### `C++ scheduler binary not found` / API 500 on schedule
+
+1. Run `./build.sh` or manual CMake build.
+2. Confirm files exist: `ls cpp/build/bin/scheduler cpp/build/bin/dualcore_scheduler cpp/build/bin/generator`.
+
+### Next.js error: `Cannot find module './NNN.js'` (chunk missing)
+
+Usually **stale `.next`** or mixed dev servers.
+
+```bash
+cd frontend && rm -rf .next && npm run dev
+```
+
+`./start.sh` already tries to clean before `next dev`.
+
+### Frontend loads but every API call fails
+
+- Is the API running?
+- Does `NEXT_PUBLIC_API_URL` match the **actual** API port (especially after `start.sh` picks non-default ports)?
+- Browser devtools → **Network** tab: look for CORS or connection refused.
+
+### Port already in use
+
+- Free the port, **or** let `start.sh` auto-pick, **or** set `PORT` for API and mirror it in `NEXT_PUBLIC_API_URL`.
+
+### Docker: API cannot find binaries
+
+Ensure host path `cpp/build/bin` is populated and mounted as in `docker-compose.yml`, or bake binaries into the image (custom Dockerfile stage).
+
+---
+
+## Security & privacy
+
+- **Never commit** `.env.local`, API keys, or tokens. This repo’s `.gitignore` excludes `.env*` patterns.
+- The scheduling API is intended for **local / trusted** networks. If you expose it publicly, add authentication, rate limits, and TLS at a reverse proxy.
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Issues and pull requests are welcome. Good first steps:
+
+1. Reproduce on latest `main` with `./build.sh` + `./start.sh`.
+2. Note OS, Node version, and whether Docker is involved.
+3. For algorithm changes, include a **small process set**, expected vs actual metrics or Gantt.
+
+---
+
+## Further reading in this repo
+
+| File | Content |
+|------|---------|
+| `QUICKSTART.md` | Shortened setup + basic troubleshooting |
+| `DOCKER_QUICK_START.md` | Docker-focused quick path |
+| `DOCKER_DEPLOYMENT.md` | Deeper deployment notes |
+
+---
+
+## License
+
+This project is released under the **MIT License** — see the `LICENSE` file.
+
+---
+
+**CoreBalance** — visualize CPU scheduling with a clear pipeline: **React UI → Express bridge → C++ schedulers**.

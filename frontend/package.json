@@ -4,8 +4,9 @@
   "description": "CoreBalance - Advanced Multi-Core CPU Scheduling Simulator with Real-time Visualization",
   "private": true,
   "scripts": {
-    "clean": "rm -rf .next",
-    "dev": "npm run clean && next dev",
+    "clean": "rm -rf .next node_modules/.cache",
+    "predev": "npm run clean",
+    "dev": "next dev",
     "dev:fast": "next dev",
     "dev:clean": "npm run clean && next dev",
     "build": "next build",
