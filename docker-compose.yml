@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Backend API (Express + C++ binaries)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - ./cpp/build/bin:/app/cpp/build/bin
+    networks:
+      - corebalance-network
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:3001
+      - NODE_ENV=production
+    depends_on:
+      - api
+    networks:
+      - corebalance-network
+
+networks:
+  corebalance-network:
+    driver: bridge

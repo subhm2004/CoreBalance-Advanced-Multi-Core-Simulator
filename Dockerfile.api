@@ -1,0 +1,27 @@
+# API Dockerfile (Express + C++ execution)
+FROM gcc:13 AS cpp-builder
+
+WORKDIR /build
+RUN apt-get update && apt-get install -y cmake build-essential && rm -rf /var/lib/apt/lists/*
+COPY cpp /build
+RUN mkdir -p build && cd build && cmake .. && make -j$(nproc)
+
+# Runtime stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache python3 make g++
+
+# Copy C++ binaries
+COPY --from=cpp-builder /build/build/bin /app/cpp/build/bin
+
+# Copy and install API dependencies
+COPY api /app/api
+WORKDIR /app/api
+RUN npm install --production
+
+EXPOSE 3001
+
+CMD ["node", "server.js"]

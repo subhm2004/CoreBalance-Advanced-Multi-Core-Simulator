@@ -1,0 +1,239 @@
+/* Minimal fallback if the main Next CSS chunk fails to load (wrong port, stale .next, etc.).
+   Keeps fonts + CSS variables so var(--cb-*) rules still resolve. */
+:root {
+  --cb-bg: #f8fafc;
+  --cb-bg-elevated: #ffffff;
+  --cb-text: #0f172a;
+  --cb-text-muted: #64748b;
+  --cb-border: #e2e8f0;
+  --cb-accent: #4f46e5;
+  --cb-accent-hover: #4338ca;
+  --cb-accent-soft: rgba(79, 70, 229, 0.08);
+  --cb-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --cb-shadow-md: 0 4px 6px rgba(15, 23, 42, 0.05), 0 12px 24px rgba(15, 23, 42, 0.06);
+  --cb-radius: 12px;
+  --cb-radius-lg: 16px;
+  --accent: 79, 70, 229;
+  --accent-2: 99, 102, 241;
+}
+
+html.dark,
+html.dark :root {
+  --cb-bg: #0c1222;
+  --cb-bg-elevated: #12192c;
+  --cb-text: #f1f5f9;
+  --cb-text-muted: #94a3b8;
+  --cb-border: #1e293b;
+  --cb-accent: #818cf8;
+  --cb-accent-hover: #a5b4fc;
+  --cb-accent-soft: rgba(129, 140, 248, 0.12);
+  --cb-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
+  --cb-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --accent: 129, 140, 248;
+  --accent-2: 99, 102, 241;
+}
+
+body {
+  font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif);
+  margin: 0;
+  color: var(--cb-text);
+  background-color: var(--cb-bg);
+}
+
+/* If the main Tailwind bundle is missing, these keep the simulator / landing readable. */
+.page-shell {
+  min-height: 100vh;
+  background-color: var(--cb-bg);
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.max-w-6xl {
+  max-width: 72rem;
+}
+
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.py-8 {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+  .md\:px-6 {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .md\:py-10 {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
+.sim-topbar,
+.sim-hero,
+.card {
+  background: var(--cb-bg-elevated);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius-lg);
+  box-shadow: var(--cb-shadow);
+}
+
+.sim-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 0.75rem 1rem;
+}
+
+.sim-hero {
+  margin-bottom: 2rem;
+  padding: 2rem 1.5rem;
+}
+
+.card {
+  border-radius: var(--cb-radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card-title,
+.section-heading,
+.sim-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cb-text);
+  margin: 0 0 1rem;
+}
+
+.section-subtitle,
+.sim-section-subtitle {
+  font-size: 0.875rem;
+  color: var(--cb-text-muted);
+  line-height: 1.6;
+  margin: 0.25rem 0 0;
+}
+
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: var(--cb-radius);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  padding: 0.625rem 1.25rem;
+  background: var(--cb-accent);
+  color: #fff;
+  border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--cb-accent-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 0.625rem 1rem;
+  background: transparent;
+  color: var(--cb-text);
+  border: 1px solid var(--cb-border);
+}
+
+.btn-secondary:hover {
+  background: var(--cb-accent-soft);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.625rem 1rem;
+  border-radius: var(--cb-radius);
+  background: var(--cb-bg-elevated);
+  color: var(--cb-text);
+  border: 1px solid var(--cb-border);
+  font: inherit;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--cb-accent);
+  box-shadow: 0 0 0 3px var(--cb-accent-soft);
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.dashboard-main,
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--cb-accent);
+  background: var(--cb-accent-soft);
+  border: 1px solid rgba(var(--accent), 0.2);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.status-error {
+  border-radius: var(--cb-radius);
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+html.dark .status-error {
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+}
